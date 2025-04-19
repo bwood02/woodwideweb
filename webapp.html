@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Tic-Tac-Toe: First to 3</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #2c3e50, #3498db);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+    }
+
+    .scoreboard {
+      font-size: 1.2rem;
+      margin-bottom: 20px;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(3, 100px);
+      grid-gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .cell {
+      width: 100px;
+      height: 100px;
+      background-color: #ecf0f1;
+      color: #2c3e50;
+      font-size: 2.5rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      border-radius: 10px;
+      transition: background 0.2s;
+    }
+
+    .cell:hover {
+      background-color: #bdc3c7;
+    }
+
+    .message {
+      font-size: 1.2rem;
+      margin-bottom: 10px;
+    }
+
+    .reset {
+      background-color: #e74c3c;
+      color: white;
+      padding: 10px 20px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .reset:hover {
+      background-color: #c0392b;
+    }
+
+    /* Modal Styling */
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+    }
+
+    .modal-content {
+      background-color: #fff;
+      color: #2c3e50;
+      padding: 30px 40px;
+      border-radius: 12px;
+      text-align: center;
+      font-size: 1.5rem;
+      animation: pop 0.5s ease;
+    }
+
+    @keyframes pop {
+      0% { transform: scale(0.5); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    /* Confetti Emoji */
+    .confetti {
+      position: fixed;
+      top: -2rem;
+      font-size: 2rem;
+      animation: fall 3s linear forwards;
+      z-index: 1000;
+      pointer-events: none;
+    }
+
+    @keyframes fall {
+      0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <h1>🎮 Tic-Tac-Toe: First to 3</h1>
+  <div class="scoreboard">You: <span id="playerScore">0</span> | Computer: <span id="computerScore">0</span></div>
+  <div class="message" id="message">Your turn! Click a square.</div>
+  <div class="board" id="board"></div>
+  <button class="reset" onclick="resetGame()">Reset All</button>
+
+  <!-- Win Modal -->
+  <div class="modal" id="winModal">
+    <div class="modal-content" id="modalText"></div>
+  </div>
+
+  <script>
+    const boardElement = document.getElementById("board");
+    const messageElement = document.getElementById("message");
+    const playerScoreElement = document.getElementById("playerScore");
+    const computerScoreElement = document.getElementById("computerScore");
+    const modal = document.getElementById("winModal");
+    const modalText = document.getElementById("modalText");
+
+    let board = Array(9).fill("");
+    let playerScore = 0;
+    let computerScore = 0;
+    let gameOver = false;
+    let playerStarts = true;
+
+    function renderBoard() {
+      boardElement.innerHTML = "";
+      board.forEach((cell, index) => {
+        const div = document.createElement("div");
+        div.classList.add("cell");
+        div.textContent = cell;
+        div.setAttribute("data-index", index);
+        div.addEventListener("click", handleCellClick);
+        boardElement.appendChild(div);
+      });
+    }
+
+    function handleCellClick(event) {
+      const index = event.target.getAttribute("data-index");
+      if (gameOver || board[index] !== "") return; // Prevent action if game over or already selected
+
+      board[index] = "X"; // Player's move
+      renderBoard();
+
+      if (checkWinner("X")) {
+        playerScore++;
+        updateScore();
+        messageElement.textContent = "🎉 You win this round!";
+        gameOver = true;
+        checkMatchEnd();
+        return;
+      }
+
+      if (board.every(cell => cell)) {
+        messageElement.textContent = "😐 It's a tie!";
+        gameOver = true;
+        endRound();
+        return;
+      }
+
+      messageElement.textContent = "🤖 Computer's turn...";
+      setTimeout(computerMove, 700);
+    }
+
+    function computerMove() {
+      if (gameOver) return;
+
+      let move = getBestMove();
+      board[move] = "O";
+      renderBoard();
+
+      if (checkWinner("O")) {
+        computerScore++;
+        updateScore();
+        messageElement.textContent = "💻 Computer wins this round!";
+        gameOver = true;
+        checkMatchEnd();
+        return;
+      }
+
+      if (board.every(cell => cell)) {
+        messageElement.textContent = "😐 It's a tie!";
+        gameOver = true;
+        endRound();
+        return;
+      }
+
+      messageElement.textContent = "Your turn!";
+    }
+
+    function getBestMove() {
+      const winningMove = findWinningMove("O");
+      if (winningMove !== -1) return winningMove;
+
+      const blockingMove = findWinningMove("X");
+      if (blockingMove !== -1) return blockingMove;
+
+      // Pick the center if available
+      if (board[4] === "") return 4;
+
+      // Pick random
+      let emptyIndices = board.map((val, i) => val === "" ? i : null).filter(v => v !== null);
+      return emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
+    }
+
+    function findWinningMove(symbol) {
+      const winPatterns = [
+        [0,1,2],[3,4,5],[6,7,8],
+        [0,3,6],[1,4,7],[2,5,8],
+        [0,4,8],[2,4,6]
+      ];
+
+      for (const pattern of winPatterns) {
+        const [a, b, c] = pattern;
+        if (board[a] === symbol && board[b] === symbol && board[c] === "") return c;
+        if (board[a] === symbol && board[c] === symbol && board[b] === "") return b;
+        if (board[b] === symbol && board[c] === symbol && board[a] === "") return a;
+      }
+
+      return -1;
+    }
+
+    function checkWinner(symbol) {
+      const winPatterns = [
+        [0,1,2],[3,4,5],[6,7,8],
+        [0,3,6],[1,4,7],[2,5,8],
+        [0,4,8],[2,4,6]
+      ];
+
+      return winPatterns.some(pattern =>
+        pattern.every(index => board[index] === symbol)
+      );
+    }
+
+    function updateScore() {
+      playerScoreElement.textContent = playerScore;
+      computerScoreElement.textContent = computerScore;
+    }
+
+    function checkMatchEnd() {
+      if (playerScore >= 3) {
+        showWinPopup("🏆 You win the match!");
+        launchConfetti();
+      } else if (computerScore >= 3) {
+        showWinPopup("💻 Computer wins the match!");
+        launchConfetti();
+      } else {
+        setTimeout(() => endRound(), 2000);
+      }
+    }
+
+    function endRound() {
+      gameOver = false;
+      board = Array(9).fill("");
+      playerStarts = !playerStarts;
+      renderBoard();
+
+      if (playerStarts) {
+        messageElement.textContent = "Your turn!";
+      } else {
+        messageElement.textContent = "Computer starts this round...";
+        setTimeout(computerMove, 1000);
+      }
+    }
+
+    function resetGame() {
+      playerScore = 0;
+      computerScore = 0;
+      playerScoreElement.textContent = playerScore;
+      computerScoreElement.textContent = computerScore;
+      gameOver = false;
+      board = Array(9).fill("");
+      playerStarts = true;
+      renderBoard();
+      messageElement.textContent = "Your turn!";
+    }
+
+    function showWinPopup(message) {
+      modalText.textContent = message;
+      modal.style.display = "flex";
+      setTimeout(() => {
+        modal.style.display = "none";
+      }, 3000);
+    }
+
+    function launchConfetti() {
+      for (let i = 0; i < 100; i++) {
+        const confetti = document.createElement("div");
+        confetti.textContent = "🎉";
+        confetti.classList.add("confetti");
+        confetti.style.left = `${Math.random() * 100}%`;
+        confetti.style.animationDelay = `${Math.random() * 2}s`;
+        document.body.appendChild(confetti);
+        setTimeout(() => confetti.remove(), 3000);
+      }
+    }
+
+    renderBoard();
+  </script>
+</body>
+</html>
